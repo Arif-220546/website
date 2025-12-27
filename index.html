@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Live Scoreboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+*{box-sizing:border-box}
+body{font-family:Arial,sans-serif;background:#f2f4f8;margin:0;padding:15px}
+.container{max-width:1100px;margin:auto}
+.card{
+  background:#fff;
+  padding:15px;
+  border-radius:12px;
+  margin-bottom:15px;
+  box-shadow:0 6px 15px rgba(0,0,0,.1)
+}
+h2{text-align:center;margin-bottom:10px}
+input,button{width:100%;padding:10px;margin:6px 0;font-size:15px}
+button{background:#4a6cf7;color:#fff;border:none;border-radius:6px;cursor:pointer}
+.logout{background:#e63946}
+.notice{
+  display:none;
+  background:linear-gradient(135deg,#4a6cf7,#6f8cff);
+  color:#fff;
+  padding:18px;
+  border-radius:15px;
+  text-align:center;
+  font-weight:600;
+  animation:glow 2s infinite alternate;
+}
+.notice span{font-size:26px;display:block;margin-bottom:5px}
+@keyframes glow{from{box-shadow:0 0 10px #4a6cf7} to{box-shadow:0 0 25px #6f8cff}}
+.table-wrapper{overflow-x:auto}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+th,td{border:1px solid #ddd;padding:8px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+th{background:#4a6cf7;color:#fff}
+.rank-1{background:#ffe066;font-weight:bold}
+.rank-2{background:#e0e0e0;font-weight:bold}
+.rank-3{background:#ffcc99;font-weight:bold}
+@media(max-width:768px){
+  .notice{display:block}
+  #adminPanel{display:none!important}
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+<div class="card" id="loginCard" style="display:none">
+  <h2>🔐 Admin Login</h2>
+  <input id="username" placeholder="Username">
+  <input id="password" type="password" placeholder="Password">
+  <button onclick="login()">Login</button>
+</div>
+<div class="card" id="adminPanel" style="display:none">
+  <h2>➕ Add / Update Score</h2>
+  <input id="idno" placeholder="ID No">
+  <input id="playerName" placeholder="Name">
+  <input id="phone" placeholder="Phone Number">
+  <input id="score" type="number" placeholder="Score">
+  <button onclick="addOrUpdate()">Save</button>
+
+  <h2>🗑 Delete by ID</h2>
+  <input id="deleteId" placeholder="ID No">
+  <button onclick="deleteById()">Delete</button>
+
+  <button class="logout" onclick="logout()">Logout</button>
+</div>
+<div class="card notice">
+  <span>📱➡️🖥️</span>
+  Please open in <b>Desktop Mode</b> on mobile<br>
+</div>
+<div class="card">
+  <h2>🏆 Live Scoreboard</h2>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>Score</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC0Gs_q7q73QbLRrk3G9NGI0Eg3D-YSk4U",
+  authDomain: "livescoreboard123.firebaseapp.com",
+  projectId: "livescoreboard123",
+  storageBucket: "livescoreboard123.firebasestorage.app",
+  messagingSenderId: "876781354526",
+  appId: "1:876781354526:web:4a1a4ee5d8a77d11f3f80f"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const scoresRef = collection(db,"scores");
+
+let loggedIn=false;
+document.addEventListener("keydown", e=>{
+  if(e.ctrlKey && e.shiftKey && e.key==="A"){
+    if(loginCard.style.display==="none"){
+      loginCard.style.display="block";
+      alert("Admin Login Enabled");
+    }
+  }
+});
+
+window.login=()=>{
+  if(window.innerWidth<768){
+    alert("Admin access only on Desktop Mode");
+    return;
+  }
+  if(username.value==="Arif" && password.value==="Arifpothuganti@2006"){
+    loggedIn=true;
+    loginCard.style.display="none";
+    adminPanel.style.display="block";
+  }else alert("Invalid Login");
+}
+window.logout=()=>{
+  loggedIn=false;
+  loginCard.style.display="none";
+  adminPanel.style.display="none";
+};
+
+
+function maskPhone(p){return loggedIn?p:"XXXXXX"+p.slice(-4)}
+
+
+window.addOrUpdate=async()=>{
+  const id=idno.value.trim();
+  const pname=playerName.value.trim();
+  const ph=phone.value.trim();
+  const sc=score.value.trim();
+  if(!id||!pname||!ph||!sc){alert("Fill all fields");return;}
+  await setDoc(doc(db,"scores",id),{id,name:pname,phone:ph,score:Number(sc)});
+  idno.value=playerName.value=phone.value=score.value="";
+};
+
+
+window.deleteById=async()=>{
+  if(!deleteId.value) return;
+  await deleteDoc(doc(db,"scores",deleteId.value));
+  deleteId.value="";
+};
+
+onSnapshot(scoresRef,snap=>{
+  const data=[];
+  snap.forEach(d=>data.push(d.data()));
+  render(data);
+});
+function render(data){
+  data.sort((a,b)=>b.score-a.score);
+  tableBody.innerHTML="";
+
+  let currentRank = 1;
+  let prevScore = null;
+
+  for(let i=0;i<data.length;i++){
+    const d = data[i];
+
+    if(prevScore !== null && d.score !== prevScore){
+      currentRank++;
+    }
+    prevScore = d.score;
+    let cls = "";
+    let rankDisplay = currentRank;
+    if(currentRank===1){cls="rank-1"; rankDisplay="🥇";}
+    else if(currentRank===2){cls="rank-2"; rankDisplay="🥈";}
+    else if(currentRank===3){cls="rank-3"; rankDisplay="🥉";}
+
+    tableBody.innerHTML += `
+      <tr class="${cls}">
+        <td>${rankDisplay}</td>
+        <td>${d.id}</td>
+        <td>${d.name}</td>
+        <td>${maskPhone(d.phone)}</td>
+        <td>${d.score}</td>
+      </tr>`;
+  }
+}
+</script>
+
+</body>
+</html>
